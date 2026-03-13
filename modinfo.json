@@ -1,0 +1,19 @@
+{
+	"type": "code",
+	"modid": "lightninghighlight",
+	"name": "LightningHighlight",
+	"version": "1.0.0",
+	"RequiredOnClient": true,
+	"RequiredOnServer": false,
+
+	"description" : "Highlight lightning protection from you trusty lightning rods",
+	
+	"website": "",
+	"authors": [ "MichValwin" ],
+
+	"side": "Universal",
+	
+	"dependencies": {
+		"game": "1.21.6"
+	}
+}

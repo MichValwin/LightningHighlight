@@ -1,0 +1,12 @@
+[*.cs]
+csharp_new_line_before_open_brace = none
+
+
+# camelCase
+dotnet_naming_rule.locals_should_be_camel_case.symbols = locals
+dotnet_naming_rule.locals_should_be_camel_case.style = camel_case_style
+dotnet_naming_rule.locals_should_be_camel_case.severity = suggestion
+
+dotnet_naming_symbols.locals.applicable_kinds = local, parameter, local_function
+
+dotnet_naming_style.camel_case_style.capitalization = camel_case
