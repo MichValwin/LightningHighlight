@@ -1,0 +1,8 @@
+{
+  "editor.formatOnSave": true, 
+  "editor.formatOnSaveMode": "file", 
+  "editor.codeLens": false,
+
+  "omnisharp.enableRoslynAnalyzers": true,
+  "notebook.defaultFormatter": "muhammad-sammy.csharp"
+}

@@ -1,0 +1,114 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+	{
+		"name": "Launch singleplyer",
+		"type": "coreclr",
+		"request": "launch",
+		"preLaunchTask": "Build (Debug)",
+		"program": "${env:VINTAGE_STORY}/Vintagestory",
+		"args": [
+			"--playStyle" , "preset-surviveandbuild",
+			"--openWorld" , "Creative DEBUG",
+			"--tracelog",
+			"--addModPath", "${workspaceFolder}/bin/Debug/net8.0",
+			"--addOrigin" , "${workspaceFolder}/",
+		],
+		"console": "internalConsole",
+		"internalConsoleOptions": "openOnSessionStart",
+		"justMyCode": false,
+	},
+	{
+			"name": "Launch Multiplayer Server (with Mod) + Client",
+			"type": "coreclr",
+			"checkForDevCert": false,
+			"request": "launch",
+			"preLaunchTask": "Build (Debug)",
+			"program": "${env:VINTAGE_STORY}/VintagestoryServer.exe",
+			"args": [
+				"--addModPath",
+				"${workspaceFolder}/bin/Debug/Mods",
+				"--dataPath",
+				"${env:VINTAGE_STORY_DATA}/ProspectTraces"
+			],
+			"console": "internalConsole",
+			"internalConsoleOptions": "openOnSessionStart",
+			"serverReadyAction": {
+				"pattern": "Dedicated Server now running on Port ([0-9]+)",
+				"action": "startDebugging",
+				"name": "Launch Multiplayer Client"
+			},
+			"justMyCode": false
+		},
+		{
+			"name": "Launch Multiplayer Server (with Mod)",
+			"type": "coreclr",
+			"checkForDevCert": false,
+			"request": "launch",
+			"preLaunchTask": "Build (Debug)",
+			"program": "${env:VINTAGE_STORY}/VintagestoryServer.exe",
+			"args": [
+				"--addModPath",
+				"${workspaceFolder}/bin/Debug/Mods",
+				"--dataPath",
+				"${env:VINTAGE_STORY_DATA}/ProspectTracesServ"
+			],
+			"console": "internalConsole",
+			"internalConsoleOptions": "openOnSessionStart",
+			"justMyCode": false
+		},
+		{
+			"name": "Launch Multiplayer Server (without Mod)",
+			"type": "coreclr",
+			"checkForDevCert": false,
+			"request": "launch",
+			"preLaunchTask": "Build (Debug)",
+			"program": "${env:VINTAGE_STORY}/VintagestoryServer.exe",
+			"args": [
+				"--dataPath",
+				"${env:VINTAGE_STORY_DATA}/ProspectTracesServ"
+			],
+			"console": "internalConsole",
+			"internalConsoleOptions": "openOnSessionStart",
+			"justMyCode": false
+		},
+		{
+			"name": "Launch Multiplayer Server (without Mod) + Client",
+			"type": "coreclr",
+			"checkForDevCert": false,
+			"request": "launch",
+			"preLaunchTask": "Build (Debug)",
+			"program": "${env:VINTAGE_STORY}/VintagestoryServer.exe",
+			"args": [
+				"--dataPath",
+				"${env:VINTAGE_STORY_DATA}/ProspectTracesServ"
+			],
+			"console": "internalConsole",
+			"internalConsoleOptions": "openOnSessionStart",
+			"serverReadyAction": {
+				"pattern": "Dedicated Server now running on Port ([0-9]+)",
+				"action": "startDebugging",
+				"name": "Launch Multiplayer Client",
+			},
+			"justMyCode": false
+		},
+		{
+			"name": "Launch Multiplayer Client",
+			"type": "coreclr",
+			"request": "launch",
+			"preLaunchTask": "Build (Debug)",
+			"program": "${env:VINTAGE_STORY}/Vintagestory.exe",
+			"args": [
+				"--connect",
+				"localhost:42420",
+				"--addModPath",
+				"${workspaceFolder}/bin/Debug/Mods",
+				"--dataPath",
+				"${env:VINTAGE_STORY_DATA}/ProspectTogetherDev"
+			],
+			"console": "internalConsole",
+			"internalConsoleOptions": "openOnSessionStart",
+			"justMyCode": false,
+		},
+]
+}
