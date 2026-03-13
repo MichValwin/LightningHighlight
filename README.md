@@ -1,10 +1,10 @@
 # Info
 Highlights blocks that can be hit by lightning.
-Default keys: Ctrl+O
+Default key toggle: Ctrl+O
 
 ### Default color codes:
 Red -> Can be hit and its NOT protected by a lightning rod
-Green -> Protected bu git a lightning rod
+Green -> Protected by git a lightning rod
 
 Default radius: 80
 
