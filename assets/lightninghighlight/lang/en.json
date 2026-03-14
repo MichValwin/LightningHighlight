@@ -1,3 +1,6 @@
 {
-    "Radius-description": "Radius to check around the player. The Lightning rod MUST in distance or it will not be detected"
+    "hotkeyDescription": "Show/Hide lightning danger zones",
+    "Radius-description": "Radius to check around the player. The Lightning rod MUST in distance or it will not be detected",
+    "SafeColor-description": "Color used to highlight lightning rod covered areas",
+    "LightningHitColor-description": "Color used to highlight areas not covered by lightning rods"
 }

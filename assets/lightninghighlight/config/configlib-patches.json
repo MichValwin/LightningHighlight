@@ -16,7 +16,7 @@
         },
         {
             "code": "SafeColor",
-            "ingui": "SafeColor",
+            "ingui": "Safe color",
             "type": "string",
             "comment": "SafeColor-description",
             "default": "#00FF0020",
@@ -24,7 +24,7 @@
         },
         {
             "code": "LightningHitColor",
-            "ingui": "LightningHitColor",
+            "ingui": "Lightning danger color",
             "type": "string",
             "comment": "LightningHitColor-description",
             "default": "#FF000020",

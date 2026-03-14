@@ -1,8 +1,8 @@
 {
 	"type": "code",
 	"modid": "lightninghighlight",
-	"name": "LightningHighlight",
-	"version": "1.0.0",
+	"name": "Lightning Highlight",
+	"version": "1.0.1",
 	"RequiredOnClient": true,
 	"RequiredOnServer": false,
 
