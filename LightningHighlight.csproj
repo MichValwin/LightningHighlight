@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<Version>1.0.1</Version>
+		<Version>1.0.2</Version>
 		<TargetFramework>net8.0</TargetFramework>
 		<Platforms>AnyCPU;x86</Platforms>
 	</PropertyGroup>
@@ -14,34 +14,18 @@
 			<HintPath>$(VINTAGE_STORY)/VintagestoryAPI.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
-		<Reference Include="VintagestoryEssentials">
-			<HintPath>$(VINTAGE_STORY)/Mods/VSEssentials.dll</HintPath>
-			<Private>false</Private>
-		</Reference>
-		 <Reference Include="VintagestorySurvival">
+		<Reference Include="VintagestorySurvival">
 			<HintPath>$(VINTAGE_STORY)/Mods/VSSurvivalMod.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
-		<Reference Include="VintagestoryCreative">
-			<HintPath>$(VINTAGE_STORY)/Mods/VSCreativeMod.dll</HintPath>
-			<Private>false</Private>
-		</Reference>
-		<Reference Include="ProtoBuf">
-			<HintPath>$(VINTAGE_STORY)/Lib/protobuf-net.dll</HintPath>
-			<Private>false</Private>
-		</Reference>
-		<Reference Include="Newtonsoft.Json">
-      		<HintPath>$(VINTAGE_STORY)\Lib\Newtonsoft.Json.dll</HintPath>
-      		<Private>false</Private>
-    	</Reference>
 	</ItemGroup>
 
 	<ItemGroup>
 		<None Include="LICENSE" CopyToOutputDirectory="PreserveNewest" />
 		<None Include="modicon.png" CopyToOutputDirectory="PreserveNewest" />
 		<None Include="modinfo.json" CopyToOutputDirectory="PreserveNewest" />
-    	<Content Include="./assets/**"  >
-      		<Link>assets/%(RecursiveDir)%(Filename)%(Extension)</Link>
+		<Content Include="./assets/**"  >
+			<Link>assets/%(RecursiveDir)%(Filename)%(Extension)</Link>
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
 	</ItemGroup>
