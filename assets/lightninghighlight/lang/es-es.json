@@ -1,0 +1,6 @@
+{
+    "hotkeyDescription": "Mostrar/Ocultar zonas en peligro por rayos",
+    "Radius-description": "Radio de detección alrededor del jugador. El pararrayos DEBE estar dentro de este rango para ser detectado",
+    "SafeColor-description": "Color zonas cubiertas por un pararrayos",
+    "LightningHitColor-description": "Color para zonas sin cobertura de pararrayos"
+}
