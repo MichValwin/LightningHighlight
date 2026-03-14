@@ -16,8 +16,8 @@ namespace LightningHighlight {
             TaskCode = $"{ModId}Task";
             configFile = "lightninghighlight-config.json";
 
-            data = ReadConfig(api);
-            Save(api);
+            data = readConfig(api);
+            save(api);
         }
         public string ModId { get; private set; }
         public string HotkeyCode { get; private set; }
@@ -35,35 +35,10 @@ namespace LightningHighlight {
 
         public int parsedLightningHitColor { get; private set; }
 
-
         public string HotkeyDescriptionString => Lang.Get($"{ModId}:hotkeyDescription");
-        public string EnabledString(bool enabled) => Lang.Get(enabled ? $"{ModId}:disable" : $"{ModId}:enable");
 
         private readonly string configFile;
         private readonly ConfigData data;
-
-
-        public void SetSafeColor(int color) {
-            parsedSafeColor = color;
-            data.SafeColor = serializeColor(color);
-        }
-
-        public void SetSafeColor(string color) {
-            parsedSafeColor = parseColor(color);
-            data.SafeColor = color;
-        }
-
-
-
-        public void SetSpawnableColor(int color) {
-            parsedLightningHitColor = color;
-            data.LightningHitColor = serializeColor(color);
-        }
-
-        public void SetSpawnableColor(string color) {
-            parsedLightningHitColor = parseColor(color);
-            data.LightningHitColor = color;
-        }
 
 
         class ConfigData {
@@ -72,16 +47,15 @@ namespace LightningHighlight {
             public string LightningHitColor;
         }
 
-        public void Save(ICoreClientAPI api) {
+        public void save(ICoreClientAPI api) {
             api.StoreModConfig(data, configFile);
         }
 
-        private ConfigData ReadConfig(ICoreClientAPI api) {
+        private ConfigData readConfig(ICoreClientAPI api) {
             ConfigData data = null;
             try {
                 data = api.LoadModConfig<ConfigData>(configFile);
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 api.Logger.Error(e);
             }
 
@@ -93,14 +67,18 @@ namespace LightningHighlight {
             parsedLightningHitColor = parseColor(data.LightningHitColor);
 
             if (api.ModLoader.IsModEnabled("configlib")) {
-                SubscribeToConfigChange(api);
+                try {
+                    subscribeToConfigChange(api);
+                } catch (Exception ex) {
+                    api.Logger.Error("Error while subscribing to configlib events", ex);
+                }
             }
 
             return data;
         }
 
 
-        private void SubscribeToConfigChange(ICoreAPI api) {
+        private void subscribeToConfigChange(ICoreAPI api) {
             ConfigLibModSystem system = api.ModLoader.GetModSystem<ConfigLibModSystem>();
 
             system.SettingChanged += (domain, config, setting) => {
