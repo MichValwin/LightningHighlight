@@ -6,6 +6,15 @@ using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using Vintagestory.GameContent;
 
+[assembly: ModInfo(
+    name: "LightningHighlight",
+    modID: "lightninghighlight",
+    Version = "1.1.0",
+    Description = "Highlight lightning protection",
+    Website = "",
+    Authors = new[] { "MichValwin" }
+    )
+]
 
 namespace LightningHighlight {
     public class LightningHighlightModSystem : ModSystem {
@@ -75,6 +84,15 @@ namespace LightningHighlight {
                     var behavior = be.GetBehavior<BEBehaviorAttractsLightning>();
                     if (behavior == null) return;
 
+                    //TODO: DEBUG
+                    // api.Logger.Debug(be.Block.Attributes.ToString().Replace("{", "{{").Replace("}", "}}"));
+                    // api.Logger.Debug($"Exists: {be.Block.Attributes.Exists}");
+                    // api.Logger.Debug($"Count: {be.Block.Attributes.Count}");
+                    // if (be.Block.Attributes?.Exists == true) {
+                    //     api.Logger.Debug(be.Block.Attributes.ToString());
+                    // }
+                    // api.Logger.Debug(be.Block.Attributes.Token.ToString());
+
                     attractors.Add(new BlockPos(x, y, z));
                 });
 
@@ -98,20 +116,20 @@ namespace LightningHighlight {
                     if (block.Id == 0) return;
                     //if (!block.SideSolid[BlockFacing.UP.Index]) return;
 
-                    //  Check if it has line of sight to the sky
+                    // Check if it has line of sight to the sky
                     var rainHeight = api.World.BlockAccessor.GetRainMapHeightAt(x, z);
                     if (rainHeight != y) return;
 
                     var blockPos = new BlockPos(x, y, z);
-                    // Check if lightning should affect to  block
-                    bool canHit = true;
+                    // Check if lightning should affect the block
+                    bool canHitBlock = true;
                     foreach (var attractor in attractors) {
-                        canHit = canLightningImpact(blockPos, attractor);
-                        if (!canHit) break;
+                        canHitBlock = !isLightningAttracted(blockPos, attractor);
+                        if (!canHitBlock) break;
                     }
 
                     positions.Add(blockPos);
-                    colors.Add(canHit ? config.parsedLightningHitColor : config.parsedSafeColor);
+                    colors.Add(canHitBlock ? config.parsedLightningHitColor : config.parsedSafeColor);
                 });
 
             showHighlights(positions, colors);
@@ -125,43 +143,54 @@ namespace LightningHighlight {
         }
 
         // Code from https://github.com/anegostudios/vssurvivalmod/blob/ac9a0059d84ca3449f066f26b5ee6b47bc9ce76a/BlockEntityBehavior/BEBehaviorAttractsLightning.cs#L62
-        private bool canLightningImpact(BlockPos impactPos, BlockPos attractor) {
+        private bool isLightningAttracted(BlockPos impactPos, BlockPos attractor) {
             var world = api.World;
-            var ourPos = attractor;
 
+
+            //TODO: Old code from vssurvivalmod
             // Get BEBehaviorAttractsLightning attributes
-            BlockEntity be = blockAccessor.GetBlockEntity(attractor);
-            BEBehaviorAttractsLightning behavior = be.GetBehavior<BEBehaviorAttractsLightning>();
-            float artificialElevation = 1f;
-            float elevationMultiplier = 1f;
-            if (behavior != null) {
-                // Access the block's type properties
-                artificialElevation = be.Block.Attributes["artificialElevation"].AsFloat(1f);
-                elevationMultiplier = be.Block.Attributes["elevationAttractivenessMultiplier"].AsFloat(1f);
-            }
+            // BlockEntity be = blockAccessor.GetBlockEntity(attractor);
+            // BEBehaviorAttractsLightning behavior = be.GetBehavior<BEBehaviorAttractsLightning>();
+            // float artificialElevation = 1.0f;
+            // float elevationAttractivenessMultiplier = 1.0f;
+            // if (behavior != null) {
+            //     artificialElevation = behavior.Block.Attributes["artificialElevation"].AsFloat(1.0f);
+            //     elevationAttractivenessMultiplier = behavior.Block.Attributes["elevationAttractivenessMultiplier"].AsFloat(1.0f);
+            //     // artificialElevation = be.Block.Attributes["artificialElevation"].AsFloat(1.0f);
+            //     // elevationAttractivenessMultiplier = be.Block.Attributes["elevationAttractivenessMultiplier"].AsFloat(1.0f);
+            // }
 
-            var ourRainHeight = world.BlockAccessor.GetRainMapHeightAt(ourPos.X, ourPos.Z);
+            // int ourRainHeight = world.BlockAccessor.GetRainMapHeightAt(attractor.X, attractor.Z);
 
-            // Something may be above us blocking line of sight to the sky
-            if (ourRainHeight != ourPos.Y) return true;
+            // // Something may be above us blocking line of sight to the sky
+            // if (ourRainHeight != attractor.Y) return false;
 
-            var impactRainHeight = world.BlockAccessor.GetRainMapHeightAt((int)impactPos.X, (int)impactPos.Z);
+            // int impactRainHeight = world.BlockAccessor.GetRainMapHeightAt((int)impactPos.X, (int)impactPos.Z);
 
-            float yDiff = artificialElevation + ourRainHeight - impactRainHeight;
+            // float yDiff = artificialElevation + ourRainHeight - impactRainHeight;
 
-            // We want the modifier to always be beneficial (if greater than 1)
-            if (yDiff < 0) {
-                yDiff /= elevationMultiplier;
-            } else {
-                yDiff *= elevationMultiplier;
-            }
+            // // We want the modifier to always be beneficial (if greater than 1)
+            // if (yDiff < 0) {
+            //     yDiff /= elevationAttractivenessMultiplier;
+            // } else {
+            //     yDiff *= elevationAttractivenessMultiplier;
+            // }
 
-            yDiff = GameMath.Min(40, yDiff);
+            // yDiff = GameMath.Min(40, yDiff); // Cap to 40
 
-            var posA = new Vec2d(ourPos.X, ourPos.Z);
-            if (posA.DistanceTo(impactPos.X, impactPos.Z) > yDiff) return true;
+            // var posAttractor = new Vec2d(attractor.X, attractor.Z);
+            // if (posAttractor.DistanceTo(impactPos.X, impactPos.Z) > yDiff) return false;
 
-            return false;
+            int ourRainHeight = world.BlockAccessor.GetRainMapHeightAt(attractor.X, attractor.Z);
+            if (ourRainHeight != attractor.Y) return false;
+            // FROM the wiki:
+            // sqrt((rod.x - target.x)^2 + (rod.z - target.z)^2) <= min(40, (5 + rod.y - target.y) * 2) 
+            var posAttractor = new Vec2d(attractor.X, attractor.Z);
+            var distance = Math.Ceiling(posAttractor.DistanceTo(impactPos.X, impactPos.Z)); // Ceil the number so we can display complete block coverage
+            var yDiff = GameMath.Min(40, (5 + attractor.Y - impactPos.Y) * 2);
+            if (distance > yDiff) return false;
+
+            return true;
         }
     }
 

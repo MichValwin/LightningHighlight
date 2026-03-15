@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<Version>1.0.3</Version>
+		<Version>1.1.0</Version>
 		<TargetFramework>net8.0</TargetFramework>
 		<Platforms>AnyCPU;x86</Platforms>
 	</PropertyGroup>
@@ -18,6 +18,10 @@
 			<HintPath>$(VINTAGE_STORY)/Mods/VSSurvivalMod.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
+		<Reference Include="Newtonsoft.Json">
+      		<HintPath>$(VINTAGE_STORY)\Lib\Newtonsoft.Json.dll</HintPath>
+      		<Private>false</Private>
+    	</Reference>
 	</ItemGroup>
 
 	<ItemGroup>
