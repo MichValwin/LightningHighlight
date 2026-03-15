@@ -152,8 +152,7 @@ namespace LightningHighlight {
             // We want the modifier to always be beneficial (if greater than 1)
             if (yDiff < 0) {
                 yDiff /= elevationMultiplier;
-            }
-            else {
+            } else {
                 yDiff *= elevationMultiplier;
             }
 

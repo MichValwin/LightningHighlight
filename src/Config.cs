@@ -8,8 +8,10 @@ using Vintagestory.API.MathTools;
 
 namespace LightningHighlight {
     internal class ModConfig {
-        public static readonly string defaultSafeColor = "#00FF0020";
-        public static readonly string defaultDangerColor = "#FF000020";
+        public static readonly string defSafeColor = "#00FF0020";
+        public static readonly string defDangerColor = "#FF000020";
+        public static readonly int defIntSafeColor = 536936192;
+        public static readonly int defIntDangerColor = 536871167;
 
         public ModConfig(ICoreClientAPI api, Mod mod) {
             ModId = mod.Info.ModID;
@@ -63,8 +65,8 @@ namespace LightningHighlight {
             }
 
             data ??= new ConfigData { Radius = 80 };
-            data.SafeColor ??= defaultSafeColor;
-            data.LightningDangerColor ??= defaultDangerColor;
+            data.SafeColor ??= defSafeColor;
+            data.LightningDangerColor ??= defDangerColor;
             setColors(data, api);
 
             if (api.ModLoader.IsModEnabled("configlib")) {
@@ -86,7 +88,6 @@ namespace LightningHighlight {
                 if (domain != ModId) return;
 
                 setting.AssignSettingValue(data);
-
                 setColors(data, api);
             };
 
@@ -96,30 +97,33 @@ namespace LightningHighlight {
         }
 
         private void setColors(ConfigData data, ICoreAPI api) {
-            try {
-                parsedSafeColor = parseColor(data.SafeColor);
-            } catch (Exception ex) {
-                api.Logger.Error("Error parsing lightning safe color. Setting default color", ex);
-                data.SafeColor = defaultSafeColor;
-                parsedSafeColor = parseColor(data.SafeColor);
+            if (tryParseColor(data.SafeColor, out int parsedSafe)) {
+                parsedSafeColor = parsedSafe;
+            } else {
+                api.Logger.Error("Error parsing lightning safe color. Setting default safe color");
+                parsedSafeColor = defIntSafeColor;
+                data.SafeColor = defSafeColor;
             }
 
-            try {
-                parsedLightningHitColor = parseColor(data.LightningDangerColor);
-            } catch (Exception ex) {
-                api.Logger.Error("Error parsing lightning danger color. Setting default color", ex);
-                data.LightningDangerColor = defaultDangerColor;
-                parsedLightningHitColor = parseColor(data.LightningDangerColor);
+            if (tryParseColor(data.LightningDangerColor, out int parsedDanger)) {
+                parsedLightningHitColor = parsedDanger;
+            } else {
+                api.Logger.Error("Error parsing lightning danger color. Setting default danger color");
+                parsedLightningHitColor = defIntDangerColor;
+                data.LightningDangerColor = defDangerColor;
             }
+
         }
 
-        private static int parseColor(string color) {
-            int r = int.Parse(color.Substring(1, 2), NumberStyles.HexNumber);
-            int g = int.Parse(color.Substring(3, 2), NumberStyles.HexNumber);
-            int b = int.Parse(color.Substring(5, 2), NumberStyles.HexNumber);
-            int a = (color.Length < 8) ? 255 : int.Parse(color.Substring(7, 2), NumberStyles.HexNumber);
-
-            return ColorUtil.ReverseColorBytes(ColorUtil.ToRgba(a, r, g, b));
+        private static bool tryParseColor(string color, out int result) {
+            result = 0;
+            if (color == null || color.Length < 7) return false;
+            if (!int.TryParse(color.AsSpan(1, 2), NumberStyles.HexNumber, null, out int r)) return false;
+            if (!int.TryParse(color.AsSpan(3, 2), NumberStyles.HexNumber, null, out int g)) return false;
+            if (!int.TryParse(color.AsSpan(5, 2), NumberStyles.HexNumber, null, out int b)) return false;
+            int a = (color.Length < 8) ? 255 : int.TryParse(color.AsSpan(7, 2), NumberStyles.HexNumber, null, out int alpha) ? alpha : 255;
+            result = ColorUtil.ReverseColorBytes(ColorUtil.ToRgba(a, r, g, b));
+            return true;
         }
     }
 }
