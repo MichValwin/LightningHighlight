@@ -8,6 +8,9 @@ using Vintagestory.API.MathTools;
 
 namespace LightningHighlight {
     internal class ModConfig {
+        public static readonly string defaultSafeColor = "#00FF0020";
+        public static readonly string defaultDangerColor = "#FF000020";
+
         public ModConfig(ICoreClientAPI api, Mod mod) {
             ModId = mod.Info.ModID;
 
@@ -44,7 +47,7 @@ namespace LightningHighlight {
         class ConfigData {
             public int Radius;
             public string SafeColor;
-            public string LightningHitColor;
+            public string LightningDangerColor;
         }
 
         public void save(ICoreClientAPI api) {
@@ -60,11 +63,9 @@ namespace LightningHighlight {
             }
 
             data ??= new ConfigData { Radius = 80 };
-            data.SafeColor ??= "#00FF0020";
-            data.LightningHitColor ??= "#FF000020";
-
-            parsedSafeColor = parseColor(data.SafeColor);
-            parsedLightningHitColor = parseColor(data.LightningHitColor);
+            data.SafeColor ??= defaultSafeColor;
+            data.LightningDangerColor ??= defaultDangerColor;
+            setColors(data, api);
 
             if (api.ModLoader.IsModEnabled("configlib")) {
                 try {
@@ -86,13 +87,30 @@ namespace LightningHighlight {
 
                 setting.AssignSettingValue(data);
 
-                parsedSafeColor = parseColor(data.SafeColor);
-                parsedLightningHitColor = parseColor(data.LightningHitColor);
+                setColors(data, api);
             };
 
             system.ConfigsLoaded += () => {
                 system.GetConfig(ModId)?.AssignSettingsValues(data);
             };
+        }
+
+        private void setColors(ConfigData data, ICoreAPI api) {
+            try {
+                parsedSafeColor = parseColor(data.SafeColor);
+            } catch (Exception ex) {
+                api.Logger.Error("Error parsing lightning safe color. Setting default color", ex);
+                data.SafeColor = defaultSafeColor;
+                parsedSafeColor = parseColor(data.SafeColor);
+            }
+
+            try {
+                parsedLightningHitColor = parseColor(data.LightningDangerColor);
+            } catch (Exception ex) {
+                api.Logger.Error("Error parsing lightning danger color. Setting default color", ex);
+                data.LightningDangerColor = defaultDangerColor;
+                parsedLightningHitColor = parseColor(data.LightningDangerColor);
+            }
         }
 
         private static int parseColor(string color) {
