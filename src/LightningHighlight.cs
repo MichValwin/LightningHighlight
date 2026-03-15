@@ -84,15 +84,6 @@ namespace LightningHighlight {
                     var behavior = be.GetBehavior<BEBehaviorAttractsLightning>();
                     if (behavior == null) return;
 
-                    //TODO: DEBUG
-                    // api.Logger.Debug(be.Block.Attributes.ToString().Replace("{", "{{").Replace("}", "}}"));
-                    // api.Logger.Debug($"Exists: {be.Block.Attributes.Exists}");
-                    // api.Logger.Debug($"Count: {be.Block.Attributes.Count}");
-                    // if (be.Block.Attributes?.Exists == true) {
-                    //     api.Logger.Debug(be.Block.Attributes.ToString());
-                    // }
-                    // api.Logger.Debug(be.Block.Attributes.Token.ToString());
-
                     attractors.Add(new BlockPos(x, y, z));
                 });
 
@@ -114,7 +105,6 @@ namespace LightningHighlight {
                 maxSearch,
                 (block, x, y, z) => {
                     if (block.Id == 0) return;
-                    //if (!block.SideSolid[BlockFacing.UP.Index]) return;
 
                     // Check if it has line of sight to the sky
                     var rainHeight = api.World.BlockAccessor.GetRainMapHeightAt(x, z);
