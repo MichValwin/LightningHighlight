@@ -103,8 +103,5 @@ namespace LightningHighlight {
 
             return ColorUtil.ReverseColorBytes(ColorUtil.ToRgba(a, r, g, b));
         }
-
-        private static string serializeColor(int color) => ColorUtil.Int2HexRgba(ColorUtil.ReverseColorBytes(color));
-
     }
 }

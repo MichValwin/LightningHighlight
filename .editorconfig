@@ -1,7 +1,9 @@
 [*.cs]
 csharp_new_line_before_open_brace = none
-
+csharp_csharp_new_line_before_else = false
 csharp_new_line_before_catch = false
+csharp_new_line_before_finally = false
+
 
 # camelCase
 dotnet_naming_rule.locals_should_be_camel_case.symbols = locals

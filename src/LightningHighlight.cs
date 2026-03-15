@@ -6,15 +6,6 @@ using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using Vintagestory.GameContent;
 
-[assembly: ModInfo(
-    name: "LightningHighlight",
-    modID: "lightninghighlight",
-    Version = "1.0.0",
-    Description = "Highlight lightning protection",
-    Website = "",
-    Authors = new[] { "MichValwin" }
-    )
-]
 
 namespace LightningHighlight {
     public class LightningHighlightModSystem : ModSystem {
@@ -59,8 +50,7 @@ namespace LightningHighlight {
             while (enable) {
                 try {
                     drawHighlights();
-                }
-                catch (Exception ex) {
+                } catch (Exception ex) {
                     api.Logger.Error(ex);
                 }
                 Thread.Sleep(250);
