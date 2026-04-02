@@ -183,9 +183,13 @@ namespace LightningHighlight {
 
             yDiff = GameMath.Min(40, yDiff); // Cap to 40
 
+            // Offset the distance by 1 only when the diff between the attractor and the impact pos is positive
+            double impactX = impactPos.X + (attractor.pos.X < impactPos.X ? 1.0 : 0.0);
+            double impactZ = impactPos.Z + (attractor.pos.Z < impactPos.Z ? 1.0 : 0.0);
+
             var posAttractor = new Vec2d(attractor.pos.X, attractor.pos.Z);
-            double distance = Math.Ceiling(posAttractor.DistanceTo(impactPos.X, impactPos.Z));  // Ceil the number so we can display complete block coverage
-            if (distance > yDiff) return false;
+            double distance = posAttractor.DistanceTo(impactX, impactZ);
+            if (distance - yDiff > 0.0f) return false;
 
             // // FROM the wiki:
             // int ourRainHeight = world.BlockAccessor.GetRainMapHeightAt(attractor.X, attractor.Z);
