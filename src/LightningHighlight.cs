@@ -12,7 +12,7 @@ using System.Linq;
 [assembly: ModInfo(
     name: "LightningHighlight",
     modID: "lightninghighlight",
-    Version = "1.1.2",
+    Version = "1.1.3",
     Description = "Highlight lightning protection",
     Website = "",
     Authors = new[] { "MichValwin" }

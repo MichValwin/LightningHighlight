@@ -2,7 +2,7 @@
 	"type": "code",
 	"modid": "lightninghighlight",
 	"name": "Lightning Highlight",
-	"version": "1.1.2",
+	"version": "1.1.3",
 	"RequiredOnClient": true,
 	"RequiredOnServer": false,
 
