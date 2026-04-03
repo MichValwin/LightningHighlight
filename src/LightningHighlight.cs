@@ -5,11 +5,13 @@ using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using Vintagestory.GameContent;
+using System.Diagnostics;
+using Vintagestory.API.Config;
 
 [assembly: ModInfo(
     name: "LightningHighlight",
     modID: "lightninghighlight",
-    Version = "1.1.1",
+    Version = "1.1.2",
     Description = "Highlight lightning protection",
     Website = "",
     Authors = new[] { "MichValwin" }
@@ -21,6 +23,7 @@ namespace LightningHighlight {
         public BlockPos pos;
         public float artificialElevation;
         public float elevationAttractivenessMultiplier;
+        public int rainHeight;
     }
 
     public class LightningHighlightModSystem : ModSystem {
@@ -68,86 +71,113 @@ namespace LightningHighlight {
                 } catch (Exception ex) {
                     api.Logger.Error(ex);
                 }
-                Thread.Sleep(250);
+                Thread.Sleep(500);
             }
             clearHighlights();
         }
 
-
         private List<LightningAttractor> getAllBlockAttractLightning(BlockPos center, int r) {
+            var chunkSize = GlobalConstants.ChunkSize;
+            FastVec2i chunk2D = new(center.X / chunkSize, center.Z / chunkSize);
+            FastVec2i start = new(chunk2D.X - r, chunk2D.Y - r);
+            FastVec2i end = new(chunk2D.X + r, chunk2D.Y + r);
+            Vec3i mapSize = api.World.BlockAccessor.MapSize;
+
+
+            int rodId = api.World.GetBlock("lightningrod")!.Id; // TODO: Only works for vanilla lightning rods
+
             List<LightningAttractor> attractors = new List<LightningAttractor>();
 
-            BlockPos minSearch = new(center.X - r, center.Y - r, center.Z - r);
-            BlockPos maxSearch = new(center.X + r, center.Y + r, center.Z + r);
-            blockAccessor.WalkBlocks(
-                minSearch,
-                maxSearch,
-                (block, x, y, z) => {
-                    if (block.Id == 0) return;
+            for (var cx = start.X; cx <= end.X; cx++) {
+                for (var cz = start.Y; cz <= end.Y; cz++) {
+                    for (var cy = mapSize.Y / chunkSize - 1; cy >= 0; cy--) {
+                        IWorldChunk chunk = api.World.ChunkProvider.GetChunk(cx, cy, cz);
+                        if (chunk.Empty) {
+                            continue;
+                        }
 
-                    // Get all blocks with BEBehaviorAttractsLightning
-                    var blockPos = new BlockPos(x, y, z);
-                    BlockEntity be = blockAccessor.GetBlockEntity(blockPos);
-                    if (be == null) return;
-                    var behavior = be.GetBehavior<BEBehaviorAttractsLightning>();
-                    if (behavior == null) return;
+                        chunk.Unpack();
+                        if (!chunk.Data.ContainsBlock(rodId)) {
+                            continue;
+                        }
 
-                    // Get config from behaviour by reflection
-                    float artificialElevation = 1.0f;
-                    float elevationAttractivenessMultiplier = 1.0f;
-                    var field = typeof(BEBehaviorAttractsLightning).GetField("configProps", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                    var configProps = field?.GetValue(behavior);
-                    if (configProps != null) {
-                        var type = configProps.GetType();
-                        artificialElevation = (float)type
-                            .GetProperty("ArtificialElevation")
-                            .GetValue(configProps);
-                        elevationAttractivenessMultiplier = (float)type
-                            .GetProperty("ElevationAttractivenessMultiplier")
-                            .GetValue(configProps);
+                        foreach (var (pos, entity) in chunk.BlockEntities) {
+                            if (entity.Block.Id == rodId) {
+                                // Get config from behaviour by reflection
+                                //TODO: Abandon reflection
+                                BlockEntity be = blockAccessor.GetBlockEntity(pos);
+                                if (be == null) continue;
+                                var behavior = be.GetBehavior<BEBehaviorAttractsLightning>();
+                                if (behavior == null) continue;
+
+                                float artificialElevation = 1.0f;
+                                float elevationAttractivenessMultiplier = 1.0f;
+                                var field = typeof(BEBehaviorAttractsLightning).GetField("configProps", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                                var configProps = field?.GetValue(behavior);
+                                if (configProps != null) {
+                                    var type = configProps.GetType();
+                                    artificialElevation = (float)type
+                                        .GetProperty("ArtificialElevation")
+                                        .GetValue(configProps);
+                                    elevationAttractivenessMultiplier = (float)type
+                                        .GetProperty("ElevationAttractivenessMultiplier")
+                                        .GetValue(configProps);
+                                }
+
+                                attractors.Add(new LightningAttractor {
+                                    pos = pos,
+                                    artificialElevation = artificialElevation,
+                                    elevationAttractivenessMultiplier = elevationAttractivenessMultiplier,
+                                    rainHeight = api.World.BlockAccessor.GetRainMapHeightAt(pos.X, pos.Z)
+                                });
+                            }
+                        }
                     }
-
-                    attractors.Add(new LightningAttractor {
-                        pos = blockPos,
-                        artificialElevation = artificialElevation,
-                        elevationAttractivenessMultiplier = elevationAttractivenessMultiplier
-                    });
-                });
+                }
+            }
 
             return attractors;
         }
 
         private void drawHighlights() {
             BlockPos pp = api.World.Player.Entity.Pos.AsBlockPos;
-            var r = config.Radius;
+            int r = config.ChunkRadius;
             List<LightningAttractor> attractors = getAllBlockAttractLightning(pp, r);
 
             List<BlockPos> positions = new();
             List<int> colors = new();
 
-            BlockPos minSearch = new(pp.X - r, pp.Y - r, pp.Z - r);
-            BlockPos maxSearch = new(pp.X + r, pp.Y + r, pp.Z + r);
-            blockAccessor.WalkBlocks(
-                minSearch,
-                maxSearch,
-                (block, x, y, z) => {
-                    if (block.Id == 0) return;
+            var chunkSize = GlobalConstants.ChunkSize;
+            FastVec2i chunk2D = new(pp.X / chunkSize, pp.Z / chunkSize);
+            FastVec2i start = new(chunk2D.X - r, chunk2D.Y - r);
+            FastVec2i end = new(chunk2D.X + r, chunk2D.Y + r);
+            Vec3i mapSize = api.World.BlockAccessor.MapSize;
 
-                    // Check if it has line of sight to the sky
-                    var rainHeight = api.World.BlockAccessor.GetRainMapHeightAt(x, z);
-                    if (rainHeight != y) return;
+            // Loop through chunk columns
+            for (var gx = start.X; gx <= end.X; gx++) {
+                for (var gz = start.Y; gz <= end.Y; gz++) {
+                    for (int cx = 0; cx < chunkSize; cx++) {
+                        for (int cz = 0; cz < chunkSize; cz++) {
+                            int worldX = gx * chunkSize + cx;
+                            int worldZ = gz * chunkSize + cz;
 
-                    var blockPos = new BlockPos(x, y, z);
-                    // Check if lightning should affect the block
-                    bool canHitBlock = true;
-                    foreach (var attractor in attractors) {
-                        canHitBlock = !isLightningAttracted(blockPos, attractor);
-                        if (!canHitBlock) break;
+                            int rainHeight = api.World.BlockAccessor.GetRainMapHeightAt(worldX, worldZ);
+                            if (rainHeight < 0 || rainHeight >= mapSize.Y) continue; // Invalid pos
+
+                            var pos = new BlockPos(worldX, rainHeight, worldZ);
+
+                            bool canHitBlock = true;
+                            foreach (var attractor in attractors) {
+                                canHitBlock = !isLightningAttracted(pos, attractor, attractor.rainHeight, rainHeight);
+                                if (!canHitBlock) break;
+                            }
+
+                            positions.Add(pos);
+                            colors.Add(canHitBlock ? config.parsedLightningHitColor : config.parsedSafeColor);
+                        }
                     }
-
-                    positions.Add(blockPos);
-                    colors.Add(canHitBlock ? config.parsedLightningHitColor : config.parsedSafeColor);
-                });
+                }
+            }
 
             showHighlights(positions, colors);
         }
@@ -160,17 +190,17 @@ namespace LightningHighlight {
         }
 
         // Code from https://github.com/anegostudios/vssurvivalmod/blob/ac9a0059d84ca3449f066f26b5ee6b47bc9ce76a/BlockEntityBehavior/BEBehaviorAttractsLightning.cs#L62
-        private bool isLightningAttracted(BlockPos impactPos, LightningAttractor attractor) {
+        private bool isLightningAttracted(BlockPos impactPos, LightningAttractor attractor, int ourRainHeight, int impactRainHeight) {
             var world = api.World;
 
             // Code from vssurvivalmod
             // Get BEBehaviorAttractsLightning config attributes
-            int ourRainHeight = world.BlockAccessor.GetRainMapHeightAt(attractor.pos.X, attractor.pos.Z);
+            //int ourRainHeight = world.BlockAccessor.GetRainMapHeightAt(attractor.pos.X, attractor.pos.Z);
 
             // Something may be above us blocking line of sight to the sky
             if (ourRainHeight != attractor.pos.Y) return false;
 
-            int impactRainHeight = world.BlockAccessor.GetRainMapHeightAt((int)impactPos.X, (int)impactPos.Z);
+            //int impactRainHeight = world.BlockAccessor.GetRainMapHeightAt((int)impactPos.X, (int)impactPos.Z);
 
             float yDiff = attractor.artificialElevation + ourRainHeight - impactRainHeight;
 

@@ -4,13 +4,13 @@
     "patches": {},
     "settings": [
         {
-            "code": "Radius",
+            "code": "ChunkRadius",
             "type": "integer",
-            "comment": "Radius-description",
-            "default": 80,
+            "comment": "ChunkRadius-description",
+            "default": 2,
             "range": {
-                "min": 20,
-                "max": 512
+                "min": 1,
+                "max": 32
             },
             "weight": 1.2
         },

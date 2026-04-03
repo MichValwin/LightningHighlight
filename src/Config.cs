@@ -31,9 +31,9 @@ namespace LightningHighlight {
 
         public int HighlighSlot { get; } = 5229;
 
-        public int Radius {
-            get => data.Radius;
-            set => data.Radius = value;
+        public int ChunkRadius {
+            get => data.ChunkRadius;
+            set => data.ChunkRadius = value;
         }
 
         public int parsedSafeColor { get; private set; }
@@ -47,7 +47,7 @@ namespace LightningHighlight {
 
 
         class ConfigData {
-            public int Radius;
+            public int ChunkRadius;
             public string SafeColor;
             public string LightningDangerColor;
         }
@@ -64,7 +64,7 @@ namespace LightningHighlight {
                 api.Logger.Error(e);
             }
 
-            data ??= new ConfigData { Radius = 80 };
+            data ??= new ConfigData { ChunkRadius = 2 };
             data.SafeColor ??= defSafeColor;
             data.LightningDangerColor ??= defDangerColor;
             setColors(data, api);
