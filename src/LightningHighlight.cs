@@ -4,8 +4,6 @@ using System.Threading;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
-using Vintagestory.GameContent;
-using System.Diagnostics;
 using Vintagestory.API.Config;
 using System.Linq;
 
@@ -31,10 +29,9 @@ namespace LightningHighlight {
         private ICoreClientAPI api;
         private ModConfig config;
         private Thread thread;
-        private IBlockAccessor blockAccessor;
         private bool enable = false;
 
-        private Dictionary<int, (float artificialElevation, float elevationAttractivenessMultiplier)> attractorBlocks = new();
+        private Dictionary<int, (float artificialElevation, float elevationAttractivenessMultiplier)> attractorBlocks = [];
 
 
         public override void StartClientSide(ICoreClientAPI api) {
@@ -58,8 +55,6 @@ namespace LightningHighlight {
             // Prevents starting a new thread before old one has ended
             if (!enable && thread?.IsAlive == true) return;
             enable = !enable;
-
-            blockAccessor = api.World.GetLockFreeBlockAccessor();
 
             thread = new Thread(RunThread) {
                 IsBackground = true,
@@ -140,8 +135,8 @@ namespace LightningHighlight {
             int r = config.ChunkRadius;
             List<LightningAttractor> attractors = getAllBlockAttractLightning(pp, r);
 
-            List<BlockPos> positions = new();
-            List<int> colors = new();
+            List<BlockPos> positions = [];
+            List<int> colors = [];
 
             var chunkSize = GlobalConstants.ChunkSize;
             FastVec2i chunk2D = new(pp.X / chunkSize, pp.Z / chunkSize);
