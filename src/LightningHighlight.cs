@@ -7,6 +7,7 @@ using Vintagestory.API.MathTools;
 using Vintagestory.GameContent;
 using System.Diagnostics;
 using Vintagestory.API.Config;
+using System.Linq;
 
 [assembly: ModInfo(
     name: "LightningHighlight",
@@ -33,10 +34,13 @@ namespace LightningHighlight {
         private IBlockAccessor blockAccessor;
         private bool enable = false;
 
+        private Dictionary<int, (float artificialElevation, float elevationAttractivenessMultiplier)> attractorBlocks = new();
+
 
         public override void StartClientSide(ICoreClientAPI api) {
             this.api = api;
             config = new ModConfig(api, Mod);
+            attractorBlocks = getLightningAttractors();
             RegisterHotkey();
         }
 
@@ -76,15 +80,28 @@ namespace LightningHighlight {
             clearHighlights();
         }
 
+        private Dictionary<int, (float artificialElevation, float elevationAttractivenessMultiplier)> getLightningAttractors() {
+            Dictionary<int, (float artificialElevation, float elevationAttractivenessMultiplier)> attractors = new();
+            foreach (var block in api.World.Blocks) {
+                if (block?.BlockEntityBehaviors == null) continue;
+
+                var bht = block.BlockEntityBehaviors.FirstOrDefault(b => b.Name == "AttractsLightning");
+                if (bht == null) continue;
+
+                float artificialElevation = bht.properties?["ArtificialElevation"].AsFloat(1.0f) ?? 1.0f;
+                float elevationAttractivenessMultiplier = bht.properties?["ElevationAttractivenessMultiplier"].AsFloat(1.0f) ?? 1.0f;
+
+                attractors[block.Id] = (artificialElevation, elevationAttractivenessMultiplier);
+            }
+            return attractors;
+        }
+
         private List<LightningAttractor> getAllBlockAttractLightning(BlockPos center, int r) {
             var chunkSize = GlobalConstants.ChunkSize;
             FastVec2i chunk2D = new(center.X / chunkSize, center.Z / chunkSize);
             FastVec2i start = new(chunk2D.X - r, chunk2D.Y - r);
             FastVec2i end = new(chunk2D.X + r, chunk2D.Y + r);
             Vec3i mapSize = api.World.BlockAccessor.MapSize;
-
-
-            int rodId = api.World.GetBlock("lightningrod")!.Id; // TODO: Only works for vanilla lightning rods
 
             List<LightningAttractor> attractors = new List<LightningAttractor>();
 
@@ -97,37 +114,16 @@ namespace LightningHighlight {
                         }
 
                         chunk.Unpack();
-                        if (!chunk.Data.ContainsBlock(rodId)) {
-                            continue;
-                        }
+                        if (!attractorBlocks.Keys.Any(id => chunk.Data.ContainsBlock(id))) continue;
 
                         foreach (var (pos, entity) in chunk.BlockEntities) {
-                            if (entity.Block.Id == rodId) {
-                                // Get config from behaviour by reflection
-                                //TODO: Abandon reflection
-                                BlockEntity be = blockAccessor.GetBlockEntity(pos);
-                                if (be == null) continue;
-                                var behavior = be.GetBehavior<BEBehaviorAttractsLightning>();
-                                if (behavior == null) continue;
+                            if (!attractorBlocks.TryGetValue(entity.Block.Id, out var attractorConfig)) continue;
 
-                                float artificialElevation = 1.0f;
-                                float elevationAttractivenessMultiplier = 1.0f;
-                                var field = typeof(BEBehaviorAttractsLightning).GetField("configProps", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                                var configProps = field?.GetValue(behavior);
-                                if (configProps != null) {
-                                    var type = configProps.GetType();
-                                    artificialElevation = (float)type
-                                        .GetProperty("ArtificialElevation")
-                                        .GetValue(configProps);
-                                    elevationAttractivenessMultiplier = (float)type
-                                        .GetProperty("ElevationAttractivenessMultiplier")
-                                        .GetValue(configProps);
-                                }
-
+                            if (attractorBlocks.ContainsKey(entity.Block.Id)) {
                                 attractors.Add(new LightningAttractor {
                                     pos = pos,
-                                    artificialElevation = artificialElevation,
-                                    elevationAttractivenessMultiplier = elevationAttractivenessMultiplier,
+                                    artificialElevation = attractorConfig.artificialElevation,
+                                    elevationAttractivenessMultiplier = attractorConfig.elevationAttractivenessMultiplier,
                                     rainHeight = api.World.BlockAccessor.GetRainMapHeightAt(pos.X, pos.Z)
                                 });
                             }
