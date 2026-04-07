@@ -1,10 +1,13 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading.Tasks;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Config;
 using Vintagestory.API.MathTools;
+using Vintagestory.API.Server;
 
 [assembly: ModInfo(
     name: "LightningHighlight",
@@ -34,6 +37,54 @@ namespace LightningHighlight {
         private ModConfig config;
 
         Dictionary<int, BehaviorProperties>? _attractorBlocks;
+
+        private long _listenerId = 0;
+        private Action<float> _hightlightAction;
+
+
+        public override void StartClientSide(ICoreClientAPI api) {
+            this.api = api;
+            config = new ModConfig(api, Mod);
+
+            _hightlightAction = DrawHighlightsNew;
+
+            api.Input.RegisterHotKey(config.HotkeyCode, config.HotkeyDescriptionString, GlKeys.O, type: HotkeyType.HelpAndOverlays, ctrlPressed: true);
+            api.Input.SetHotKeyHandler(config.HotkeyCode, _ => ToggleVisualization());
+
+            api.ChatCommands.GetOrCreate("threat").HandleWith(OnThreaded);
+            api.ChatCommands.GetOrCreate("slim").HandleWith(OnSlim);
+            api.ChatCommands.GetOrCreate("simple").HandleWith(OnSimple);
+        }
+
+        TextCommandResult OnThreaded(TextCommandCallingArgs args) {
+            _hightlightAction = DrawHighlightsThreaded;
+            return TextCommandResult.Success("Changed to threaded");
+        }
+
+        TextCommandResult OnSlim(TextCommandCallingArgs args) {
+            _hightlightAction = DrawHighlightsNew;
+            return TextCommandResult.Success("Changed to slim same arrr");
+        }
+
+        TextCommandResult OnSimple(TextCommandCallingArgs args) {
+            _hightlightAction = DrawHighlightsSimple;
+            return TextCommandResult.Success("Changed to simple");
+        }
+
+
+        //Simple toggle system which adds/remove the highlight calculating function which won't be the drawer if an IRender is involved...
+        private bool ToggleVisualization() {
+            if (_listenerId == 0) {
+                _listenerId = api.Event.RegisterGameTickListener(_hightlightAction, 500);
+            } else {
+                api.Event.UnregisterGameTickListener(_listenerId);
+                api.World.HighlightBlocks(api.World.Player, config.HighlighSlot, []);
+
+                _listenerId = 0;
+            }
+            return true;
+        }
+
         private Dictionary<int, BehaviorProperties> AttractorBlocks {
             //Cause that function is supposed to happen only once, let's just make sure it does!
             get {
@@ -55,29 +106,8 @@ namespace LightningHighlight {
             }
         }
 
-        public override void StartClientSide(ICoreClientAPI api) {
-            this.api = api;
-            config = new ModConfig(api, Mod);
-
-            api.Input.RegisterHotKey(config.HotkeyCode, config.HotkeyDescriptionString, GlKeys.O, type: HotkeyType.HelpAndOverlays, ctrlPressed: true);
-            api.Input.SetHotKeyHandler(config.HotkeyCode, _ => ToggleVisualization());
-        }
-
-        long _listenerId = 0;
-        //Simple toggle system which adds/remove the highlight calculating function which won't be the drawer if an IRender is involved...
-        private bool ToggleVisualization() {
-            if (_listenerId == 0) {
-                _listenerId = api.Event.RegisterGameTickListener(DrawHighlights, 500);
-            } else {
-                api.Event.UnregisterGameTickListener(_listenerId);
-                api.World.HighlightBlocks(api.World.Player, config.HighlighSlot, []);
-
-                _listenerId = 0;
-            }
-            return true;
-        }
-
         private List<LightningAttractor> GetAttractorsByRadius(BlockPos center, int r) {
+            r += 2; // Get 2x chunks more to get all the attractors that could possible hit?
             var chunkSize = GlobalConstants.ChunkSize;
             FastVec2i chunk2D = new(center.X / chunkSize, center.Z / chunkSize);
             FastVec2i start = new(chunk2D.X - r, chunk2D.Y - r);
@@ -134,7 +164,7 @@ namespace LightningHighlight {
             }
         }
 
-        private void DrawHighlights(float _) {
+        private void DrawHighlightsNew(float _) {
             Stopwatch sw = new Stopwatch();
             sw.Start();
 
@@ -184,6 +214,7 @@ namespace LightningHighlight {
                     }
                 }
             }
+
             sw.Stop();
             api.Logger.Debug($"To calculate lights and populate list, taken ${sw.ElapsedMilliseconds}");
 
@@ -192,6 +223,98 @@ namespace LightningHighlight {
             sw.Stop();
             api.Logger.Debug($"Taken {sw.ElapsedMilliseconds}ms to do the highlight");
 
+        }
+
+        private void DrawHighlightsSimple(float _) {
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+            BlockPos pp = api.World.Player.Entity.Pos.AsBlockPos;
+            int r = config.ChunkRadius;
+            List<LightningAttractor> attractors = GetAttractorsByRadius(pp, r);
+
+            var chunkSize = GlobalConstants.ChunkSize;
+            FastVec2i playerChunk = new(pp.X / chunkSize, pp.Z / chunkSize);
+            //The first position in the first chunk (north-west)
+            FastVec2i start = chunkSize * (playerChunk - r);
+            //The position after the last chunk (south-east)
+            FastVec2i end = chunkSize * (playerChunk + r + 1);
+            Vec3i mapSize = api.World.BlockAccessor.MapSize;
+
+            int capacity = (end.X - start.X) * (end.Y - start.Y);
+            List<BlockPos> positions = new(capacity);
+            List<int> colors = new(capacity);
+
+            //rather than iterating through chunks we will iterate through the whole area so it's straightforward to parallelize efficiently
+            //I prefer to iterate line by line, hence Z : personal preference :-3
+            for (var z = start.Y; z < end.Y; z++) {
+                for (var x = start.X; x < end.X; x++) {
+                    var pos = new BlockPos(x, 0, z);
+
+                    pos.Y = api.World.BlockAccessor.GetRainMapHeightAt(pos);
+
+                    if (pos.Y < 0 || pos.Y >= mapSize.Y) {
+                        continue; // Invalid pos
+                    }
+                    bool isProtected = attractors.Any(a => IsLightningAttracted(pos, a));
+
+                    positions.Add(pos);
+                    colors.Add(isProtected ? config.parsedSafeColor : config.parsedLightningHitColor);
+                }
+            }
+
+            sw.Stop();
+            api.Logger.Debug($"To calculate lights and populate list, taken ${sw.ElapsedMilliseconds}");
+
+            sw.Start();
+            api.World.HighlightBlocks(api.World.Player, config.HighlighSlot, positions, colors);
+            sw.Stop();
+            api.Logger.Debug($"Taken {sw.ElapsedMilliseconds}ms to do the highlight");
+        }
+
+        private void DrawHighlightsThreaded(float _) {
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+            BlockPos pp = api.World.Player.Entity.Pos.AsBlockPos;
+            int r = config.ChunkRadius;
+            List<LightningAttractor> attractors = GetAttractorsByRadius(pp, r);
+
+            var chunkSize = GlobalConstants.ChunkSize;
+            FastVec2i playerChunk = new(pp.X / chunkSize, pp.Z / chunkSize);
+            //The first position in the first chunk (north-west)
+            FastVec2i start = chunkSize * (playerChunk - r);
+            //The position after the last chunk (south-east)
+            FastVec2i end = chunkSize * (playerChunk + r + 1);
+            Vec3i mapSize = api.World.BlockAccessor.MapSize;
+
+            int capacity = (end.X - start.X) * (end.Y - start.Y);
+            List<BlockPos> positions = new(capacity);
+            List<int> colors = new(capacity);
+
+            //rather than iterating through chunks we will iterate through the whole area so it's straightforward to parallelize efficiently
+            //I prefer to iterate line by line, hence Z : personal preference :-3
+            for (var z = start.Y; z < end.Y; z++) {
+                Parallel.For(start.X, end.X,
+                    new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount - 1 },
+                    (x, loopState) => {
+                        var pos = new BlockPos(x, 0, z);
+
+                        pos.Y = api.World.BlockAccessor.GetRainMapHeightAt(pos);
+
+                        if (pos.Y < 0 || pos.Y >= mapSize.Y) return; // Invalid pos
+                        bool isProtected = attractors.Any(a => IsLightningAttracted(pos, a));
+
+                        positions.Add(pos);
+                        colors.Add(isProtected ? config.parsedSafeColor : config.parsedLightningHitColor);
+                    });
+            }
+
+            sw.Stop();
+            api.Logger.Debug($"To calculate lights and populate list, taken ${sw.ElapsedMilliseconds}");
+
+            sw.Start();
+            api.World.HighlightBlocks(api.World.Player, config.HighlighSlot, positions, colors);
+            sw.Stop();
+            api.Logger.Debug($"Taken {sw.ElapsedMilliseconds}ms to do the highlight");
         }
 
         private static bool IsLightningAttracted(BlockPos testPos, LightningAttractor attractor) {
