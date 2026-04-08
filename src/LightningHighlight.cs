@@ -41,12 +41,17 @@ namespace LightningHighlight {
         private long _listenerId = 0;
         private Action<float> _hightlightAction;
 
+        HightlightRenderer _renderer;
+
 
         public override void StartClientSide(ICoreClientAPI api) {
             this.api = api;
             config = new ModConfig(api, Mod);
 
             _hightlightAction = DrawHighlightsNew;
+            _renderer = new(api);
+
+            api.Event.RegisterRenderer(_renderer, EnumRenderStage.OIT);
 
             api.Input.RegisterHotKey(config.HotkeyCode, config.HotkeyDescriptionString, GlKeys.O, type: HotkeyType.HelpAndOverlays, ctrlPressed: true);
             api.Input.SetHotKeyHandler(config.HotkeyCode, _ => ToggleVisualization());
@@ -219,7 +224,9 @@ namespace LightningHighlight {
             api.Logger.Debug($"To calculate lights and populate list, taken ${sw.ElapsedMilliseconds}");
 
             sw.Start();
-            api.World.HighlightBlocks(api.World.Player, config.HighlighSlot, _positions, _colors);
+            //api.World.HighlightBlocks(api.World.Player, config.HighlighSlot, _positions, _colors);
+            //TODO: Add hightlghter to renderer
+
             sw.Stop();
             api.Logger.Debug($"Taken {sw.ElapsedMilliseconds}ms to do the highlight");
 
