@@ -32,6 +32,12 @@ namespace LightningHighlight {
         public float ElevationAttractivenessMultiplier { get; set; }
     }
 
+    public struct MeshCube(BlockPos pos, int facing) {
+        public readonly BlockPos Position = pos.Copy(); //COpy??
+        public readonly int Facing = facing;
+    }
+
+
     public class LightningHighlightModSystem : ModSystem {
         private ICoreClientAPI api;
         private ModConfig config;
@@ -43,12 +49,11 @@ namespace LightningHighlight {
 
         HightlightRenderer _renderer;
 
-
         public override void StartClientSide(ICoreClientAPI api) {
             this.api = api;
             config = new ModConfig(api, Mod);
 
-            _hightlightAction = DrawHighlightsNew;
+            _hightlightAction = DrawHighlightsNewRenderer;
             _renderer = new(api);
 
             api.Event.RegisterRenderer(_renderer, EnumRenderStage.OIT);
@@ -59,6 +64,7 @@ namespace LightningHighlight {
             api.ChatCommands.GetOrCreate("threat").HandleWith(OnThreaded);
             api.ChatCommands.GetOrCreate("slim").HandleWith(OnSlim);
             api.ChatCommands.GetOrCreate("simple").HandleWith(OnSimple);
+            api.ChatCommands.GetOrCreate("render").HandleWith(OnRender);
         }
 
         TextCommandResult OnThreaded(TextCommandCallingArgs args) {
@@ -74,6 +80,11 @@ namespace LightningHighlight {
         TextCommandResult OnSimple(TextCommandCallingArgs args) {
             _hightlightAction = DrawHighlightsSimple;
             return TextCommandResult.Success("Changed to simple");
+        }
+
+        TextCommandResult OnRender(TextCommandCallingArgs args) {
+            _hightlightAction = DrawHighlightsNewRenderer;
+            return TextCommandResult.Success("Changed to render");
         }
 
 
@@ -252,7 +263,6 @@ namespace LightningHighlight {
             List<int> colors = new(capacity);
 
             //rather than iterating through chunks we will iterate through the whole area so it's straightforward to parallelize efficiently
-            //I prefer to iterate line by line, hence Z : personal preference :-3
             for (var z = start.Y; z < end.Y; z++) {
                 for (var x = start.X; x < end.X; x++) {
                     var pos = new BlockPos(x, 0, z);
@@ -265,7 +275,8 @@ namespace LightningHighlight {
                     bool isProtected = attractors.Any(a => IsLightningAttracted(pos, a));
 
                     positions.Add(pos);
-                    colors.Add(isProtected ? config.parsedSafeColor : config.parsedLightningHitColor);
+                    int color = isProtected ? config.parsedSafeColor : config.parsedLightningHitColor;
+                    colors.Add(color);
                 }
             }
 
@@ -276,6 +287,72 @@ namespace LightningHighlight {
             api.World.HighlightBlocks(api.World.Player, config.HighlighSlot, positions, colors);
             sw.Stop();
             api.Logger.Debug($"Taken {sw.ElapsedMilliseconds}ms to do the highlight");
+        }
+
+        private void DrawHighlightsNewRenderer(float _) {
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+            BlockPos pp = api.World.Player.Entity.Pos.AsBlockPos;
+            int r = config.ChunkRadius;
+            List<LightningAttractor> attractors = GetAttractorsByRadius(pp, r);
+
+            var chunkSize = GlobalConstants.ChunkSize;
+            FastVec2i playerChunk = new(pp.X / chunkSize, pp.Z / chunkSize);
+            //The first position in the first chunk (north-west)
+            FastVec2i start = chunkSize * (playerChunk - r);
+            //The position after the last chunk (south-east)
+            FastVec2i end = chunkSize * (playerChunk + r + 1);
+            Vec3i mapSize = api.World.BlockAccessor.MapSize;
+
+            int capacity = (end.X - start.X) * (end.Y - start.Y);
+
+            var origin = pp.Copy();
+            //MeshData mesh = new(capacity * 4 * 6, capacity * 6 * 6, false, false, true, false); ALL faces
+            MeshData mesh = new(capacity * 4, capacity * 1, false, false, true, false);
+            float[] shadings = CubeMeshUtil.DefaultBlockSideShadingsByFacing;
+
+            api.Event.EnqueueMainThreadTask(() => { if (_renderer.Context?.MeshRef != null) _renderer.Context.MeshRef.Dispose(); }, "lmr");
+
+            //rather than iterating through chunks we will iterate through the whole area so it's straightforward to parallelize efficiently
+            for (var z = start.Y; z < end.Y; z++) {
+                for (var x = start.X; x < end.X; x++) {
+                    var pos = new BlockPos(x, 0, z);
+
+                    pos.Y = api.World.BlockAccessor.GetRainMapHeightAt(pos);
+
+                    if (pos.Y < 0 || pos.Y >= mapSize.Y) {
+                        continue; // Invalid pos
+                    }
+                    bool isProtected = attractors.Any(a => IsLightningAttracted(pos, a));
+
+                    int color = isProtected ? config.parsedSafeColor : config.parsedLightningHitColor;
+
+                    // Create mesh renderer
+                    // foreach (var face in BlockFacing.ALLFACES) {
+
+                    //     var center = new Vec3f {
+                    //         X = pos.X - origin.X + 0.5f,
+                    //         Y = pos.InternalY - origin.Y + 0.5f,
+                    //         Z = pos.Z - origin.Z + 0.5f
+                    //     };
+                    //     ModelCubeUtilExt.AddFaceSkipTex(mesh, face, center, Vec3f.One, color, shadings[face.Index]);
+                    // }
+
+                    // Only create a mesh for the UP face of the block
+                    var center = new Vec3f {
+                        X = pos.X - origin.X + 0.5f,
+                        Y = pos.InternalY - origin.Y + 0.5f,
+                        Z = pos.Z - origin.Z + 0.5f
+                    };
+                    ModelCubeUtilExt.AddFaceSkipTex(mesh, BlockFacing.UP, center, Vec3f.One, color, shadings[BlockFacing.UP.Index]);
+                }
+            }
+
+            // Upload mesh and store ref
+            api.Event.EnqueueMainThreadTask(() => _renderer.Context = new(origin, api.Render.UploadMesh(mesh)), "lmr");
+
+            sw.Stop();
+            api.Logger.Debug($"To calculate lights and populate list, taken ${sw.ElapsedMilliseconds}");
         }
 
         private void DrawHighlightsThreaded(float _) {
@@ -314,6 +391,9 @@ namespace LightningHighlight {
                         colors.Add(isProtected ? config.parsedSafeColor : config.parsedLightningHitColor);
                     });
             }
+
+
+
 
             sw.Stop();
             api.Logger.Debug($"To calculate lights and populate list, taken ${sw.ElapsedMilliseconds}");

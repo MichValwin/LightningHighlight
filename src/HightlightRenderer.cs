@@ -11,7 +11,7 @@ class HightlightRenderer : IRenderer {
     private ICoreClientAPI _api;
 
     public double RenderOrder => 0.89;
-    public int RenderRange => 200;
+    public int RenderRange => 256;
     public HighlightContext? Context;
 
     public HightlightRenderer(ICoreClientAPI api) {
