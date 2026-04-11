@@ -32,11 +32,6 @@ namespace LightningHighlight {
         public float ElevationAttractivenessMultiplier { get; set; }
     }
 
-    public struct MeshCube(BlockPos pos, int facing) {
-        public readonly BlockPos Position = pos.Copy(); //COpy??
-        public readonly int Facing = facing;
-    }
-
 
     public class LightningHighlightModSystem : ModSystem {
         private ICoreClientAPI api;
@@ -304,12 +299,33 @@ namespace LightningHighlight {
             FastVec2i end = chunkSize * (playerChunk + r + 1);
             Vec3i mapSize = api.World.BlockAccessor.MapSize;
 
-            int capacity = (end.X - start.X) * (end.Y - start.Y);
+            int width = end.X - start.X;
+            int height = end.Y - start.Y;
+            int capacity = width * height;
+
 
             var origin = pp.Copy();
             //MeshData mesh = new(capacity * 4 * 6, capacity * 6 * 6, false, false, true, false); ALL faces
             MeshData mesh = new(capacity * 4, capacity * 1, false, false, true, false);
             float[] shadings = CubeMeshUtil.DefaultBlockSideShadingsByFacing;
+
+            // Build discriminator array  so we dont cehck on positions that cannot be covered
+            bool[] collideArr = new bool[capacity];
+            int sizeAttractorMax = 43; // Magic number (bigger than max raidus protects)
+            int attrR = sizeAttractorMax;
+            foreach (var attr in attractors) {
+                for (int z = attr.Pos.Z - attrR; z < attr.Pos.Z + attrR; z++) {
+                    for (int x = attr.Pos.X - attrR; x < attr.Pos.X + attrR; x++) {
+                        int xx = end.X - x;
+                        int zz = end.Y - z;
+                        if (xx < 0 || zz < 0 || xx >= width || zz >= height) {
+                            continue;
+                        }
+                        collideArr[xx + zz * width] = true;
+                    }
+                }
+            }
+
 
             api.Event.EnqueueMainThreadTask(() => { if (_renderer.Context?.MeshRef != null) _renderer.Context.MeshRef.Dispose(); }, "lmr");
 
@@ -317,16 +333,33 @@ namespace LightningHighlight {
             for (var z = start.Y; z < end.Y; z++) {
                 for (var x = start.X; x < end.X; x++) {
                     var pos = new BlockPos(x, 0, z);
-
                     pos.Y = api.World.BlockAccessor.GetRainMapHeightAt(pos);
-
                     if (pos.Y < 0 || pos.Y >= mapSize.Y) {
-                        continue; // Invalid pos
+                        continue; // Invalid pos TODO: check
                     }
-                    bool isProtected = attractors.Any(a => IsLightningAttracted(pos, a));
 
-                    int color = isProtected ? config.parsedSafeColor : config.parsedLightningHitColor;
+                    int xx = end.X - x - 1;
+                    int zz = end.Y - z - 1;
+                    if (!collideArr[xx + zz * width]) {
+                        // Cant be protected
+                        int color = config.parsedLightningHitColor;
 
+                        var center = new Vec3f {
+                            X = pos.X - origin.X + 0.5f,
+                            Y = pos.InternalY - origin.Y + 0.5f,
+                            Z = pos.Z - origin.Z + 0.5f
+                        };
+                        ModelCubeUtilExt.AddFaceSkipTex(mesh, BlockFacing.UP, center, Vec3f.One, color, shadings[BlockFacing.UP.Index]);
+                    } else {
+                        bool isProtected = attractors.Any(a => IsLightningAttracted(pos, a));
+                        int color = isProtected ? config.parsedSafeColor : config.parsedLightningHitColor;
+                        var center = new Vec3f {
+                            X = pos.X - origin.X + 0.5f,
+                            Y = pos.InternalY - origin.Y + 0.5f,
+                            Z = pos.Z - origin.Z + 0.5f
+                        };
+                        ModelCubeUtilExt.AddFaceSkipTex(mesh, BlockFacing.UP, center, Vec3f.One, color, shadings[BlockFacing.UP.Index]);
+                    }
                     // Create mesh renderer
                     // foreach (var face in BlockFacing.ALLFACES) {
 
@@ -339,12 +372,7 @@ namespace LightningHighlight {
                     // }
 
                     // Only create a mesh for the UP face of the block
-                    var center = new Vec3f {
-                        X = pos.X - origin.X + 0.5f,
-                        Y = pos.InternalY - origin.Y + 0.5f,
-                        Z = pos.Z - origin.Z + 0.5f
-                    };
-                    ModelCubeUtilExt.AddFaceSkipTex(mesh, BlockFacing.UP, center, Vec3f.One, color, shadings[BlockFacing.UP.Index]);
+
                 }
             }
 
