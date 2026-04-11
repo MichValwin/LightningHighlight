@@ -21,7 +21,18 @@ class HightlightRenderer : IRenderer {
     public void Dispose() {
         if (Context != null) {
             _api.Render.DeleteMesh(Context.MeshRef);
+            Context = null;
         }
+    }
+
+    public static void addUPFaceToMesh(MeshData mesh, BlockPos pos, BlockPos origin, int color) {
+        float shading = CubeMeshUtil.DefaultBlockSideShadingsByFacing[BlockFacing.UP.Index];
+        var center = new Vec3f {
+            X = pos.X - origin.X + 0.5f,
+            Y = pos.InternalY - origin.Y + 0.5f,
+            Z = pos.Z - origin.Z + 0.5f
+        };
+        ModelCubeUtilExt.AddFaceSkipTex(mesh, BlockFacing.UP, center, Vec3f.One, color, shading);
     }
 
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage) {
