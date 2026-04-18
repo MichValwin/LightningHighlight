@@ -10,4 +10,4 @@ Default chunk detection radius: 2
 
 # Credits
 The code to make this mod has been blatanly copied from https://github.com/JeanSummers/spawnhighlight
-Thx to Psyloh for helping to make this mod way faster. Check out his mod: https://github.com/Psyloh/lightmyrod
+Thx to Psyloh for helping to make this mod way faster (by a lot of changes and the new renderer). Check out his mod: https://github.com/Psyloh/lightmyrod
