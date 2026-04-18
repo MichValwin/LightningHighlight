@@ -29,8 +29,6 @@ namespace LightningHighlight {
         public string ThreadName { get; private set; }
         public string TaskCode { get; private set; }
 
-        public int HighlighSlot { get; } = 5231;
-
         public int ChunkRadius {
             get => data.ChunkRadius;
             set => data.ChunkRadius = value;

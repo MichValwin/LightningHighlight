@@ -1,104 +1,103 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Threading;
+using System.Diagnostics;
+using System.Linq;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
-using Vintagestory.API.MathTools;
 using Vintagestory.API.Config;
-using System.Linq;
+using Vintagestory.API.MathTools;
 
 [assembly: ModInfo(
     name: "LightningHighlight",
     modID: "lightninghighlight",
-    Version = "1.1.3",
+    Version = "1.1.4",
     Description = "Highlight lightning protection",
     Website = "",
-    Authors = new[] { "MichValwin" }
+    Authors = new[] { "MichValwin", "Psyloh" }
     )
 ]
 
 namespace LightningHighlight {
-    public struct LightningAttractor {
-        public BlockPos pos;
-        public float artificialElevation;
-        public float elevationAttractivenessMultiplier;
-        public int rainHeight;
+    struct LightningAttractor {
+        public int Id;
+        public BlockPos Pos;
+        public BehaviorProperties Properties;
     }
+
+    //Property class for each type of attractor, won't be much instanciated as there's only one type of attractor as of yet
+    class BehaviorProperties {
+        public float ArtificialElevation { get; set; }
+        public float ElevationAttractivenessMultiplier { get; set; }
+    }
+
 
     public class LightningHighlightModSystem : ModSystem {
         private ICoreClientAPI api;
         private ModConfig config;
-        private Thread thread;
-        private bool enable = false;
 
-        private Dictionary<int, (float artificialElevation, float elevationAttractivenessMultiplier)> attractorBlocks = [];
+        Dictionary<int, BehaviorProperties>? _attractorBlocks;
 
+        private long _listenerId = 0;
+        private Action<float> _hightlightAction;
+
+        HightlightRenderer _renderer;
 
         public override void StartClientSide(ICoreClientAPI api) {
             this.api = api;
             config = new ModConfig(api, Mod);
-            attractorBlocks = getLightningAttractors();
-            RegisterHotkey();
-        }
 
-        private void RegisterHotkey() {
+            _hightlightAction = DrawHighlightsNewRenderer;
+            _renderer = new(api);
+
+            api.Event.RegisterRenderer(_renderer, EnumRenderStage.OIT);
+
             api.Input.RegisterHotKey(config.HotkeyCode, config.HotkeyDescriptionString, GlKeys.O, type: HotkeyType.HelpAndOverlays, ctrlPressed: true);
-            api.Input.SetHotKeyHandler(config.HotkeyCode, toggleHotkey);
+            api.Input.SetHotKeyHandler(config.HotkeyCode, _ => ToggleVisualization());
         }
 
-        private bool toggleHotkey(KeyCombination _) {
-            toggleVisualization();
+
+        //Simple toggle system which adds/remove the highlight calculating function which won't be the drawer if an IRender is involved...
+        private bool ToggleVisualization() {
+            if (_listenerId == 0) {
+                _listenerId = api.Event.RegisterGameTickListener(_hightlightAction, 500);
+            } else {
+                api.Event.UnregisterGameTickListener(_listenerId);
+                _renderer.Dispose(); // For the renderer
+                _listenerId = 0;
+            }
             return true;
         }
 
-        private void toggleVisualization() {
-            // Prevents starting a new thread before old one has ended
-            if (!enable && thread?.IsAlive == true) return;
-            enable = !enable;
+        private Dictionary<int, BehaviorProperties> AttractorBlocks {
+            //Cause that function is supposed to happen only once, let's just make sure it does!
+            get {
+                if (_attractorBlocks == null) {
+                    _attractorBlocks = [];
+                    foreach (var block in api.World.Blocks) {
+                        //I might be wrong but I'm pretty sure all blocks have that array instanciated
+                        if (block.BlockEntityBehaviors.Length < 1) continue;
 
-            thread = new Thread(RunThread) {
-                IsBackground = true,
-                Name = config.ThreadName
-            };
-            thread.Start();
-        }
+                        var bht = block.BlockEntityBehaviors.FirstOrDefault(b => b.Name == "AttractsLightning");
+                        if (bht == null) continue;
 
-        private void RunThread() {
-            while (enable) {
-                try {
-                    drawHighlights();
-                } catch (Exception ex) {
-                    api.Logger.Error(ex);
+                        //If  that line throws a NullException there's a biger issue underlying
+                        //thus we are ok to crash the game!
+                        _attractorBlocks[block.Id] = bht.properties?.AsObject<BehaviorProperties>()!;
+                    }
                 }
-                Thread.Sleep(500);
+                return _attractorBlocks;
             }
-            clearHighlights();
         }
 
-        private Dictionary<int, (float artificialElevation, float elevationAttractivenessMultiplier)> getLightningAttractors() {
-            Dictionary<int, (float artificialElevation, float elevationAttractivenessMultiplier)> attractors = new();
-            foreach (var block in api.World.Blocks) {
-                if (block?.BlockEntityBehaviors == null) continue;
-
-                var bht = block.BlockEntityBehaviors.FirstOrDefault(b => b.Name == "AttractsLightning");
-                if (bht == null) continue;
-
-                float artificialElevation = bht.properties?["ArtificialElevation"].AsFloat(1.0f) ?? 1.0f;
-                float elevationAttractivenessMultiplier = bht.properties?["ElevationAttractivenessMultiplier"].AsFloat(1.0f) ?? 1.0f;
-
-                attractors[block.Id] = (artificialElevation, elevationAttractivenessMultiplier);
-            }
-            return attractors;
-        }
-
-        private List<LightningAttractor> getAllBlockAttractLightning(BlockPos center, int r) {
+        private List<LightningAttractor> GetAttractorsByRadius(BlockPos center, int r) {
+            r += 2; // Get 2x chunks more to get all the attractors that could possible hit?
             var chunkSize = GlobalConstants.ChunkSize;
             FastVec2i chunk2D = new(center.X / chunkSize, center.Z / chunkSize);
             FastVec2i start = new(chunk2D.X - r, chunk2D.Y - r);
             FastVec2i end = new(chunk2D.X + r, chunk2D.Y + r);
             Vec3i mapSize = api.World.BlockAccessor.MapSize;
 
-            List<LightningAttractor> attractors = new List<LightningAttractor>();
+            List<LightningAttractor> attractors = [];
 
             for (var cx = start.X; cx <= end.X; cx++) {
                 for (var cz = start.Y; cz <= end.Y; cz++) {
@@ -107,123 +106,125 @@ namespace LightningHighlight {
                         if (chunk.Empty) {
                             continue;
                         }
-
                         chunk.Unpack();
-                        if (!attractorBlocks.Keys.Any(id => chunk.Data.ContainsBlock(id))) continue;
+                        if (!AttractorBlocks.Keys.Any(chunk.Data.ContainsBlock)) continue;
+
 
                         foreach (var (pos, entity) in chunk.BlockEntities) {
-                            if (!attractorBlocks.TryGetValue(entity.Block.Id, out var attractorConfig)) continue;
-
-                            if (attractorBlocks.ContainsKey(entity.Block.Id)) {
-                                attractors.Add(new LightningAttractor {
-                                    pos = pos,
-                                    artificialElevation = attractorConfig.artificialElevation,
-                                    elevationAttractivenessMultiplier = attractorConfig.elevationAttractivenessMultiplier,
-                                    rainHeight = api.World.BlockAccessor.GetRainMapHeightAt(pos.X, pos.Z)
-                                });
+                            if (!AttractorBlocks.TryGetValue(entity.Block.Id, out var properties)) {
+                                continue;
                             }
+
+                            int rainHeight = api.World.BlockAccessor.GetRainMapHeightAt(pos.X, pos.Z);
+                            if (pos.Y != rainHeight) continue; // Attractor is blocked by something
+
+                            attractors.Add(new() {
+                                Id = entity.Block.Id,
+                                Pos = pos,
+                                Properties = properties
+                            });
                         }
                     }
                 }
             }
-
             return attractors;
         }
 
-        private void drawHighlights() {
+        private void DrawHighlightsNewRenderer(float _) {
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
             BlockPos pp = api.World.Player.Entity.Pos.AsBlockPos;
             int r = config.ChunkRadius;
-            List<LightningAttractor> attractors = getAllBlockAttractLightning(pp, r);
-
-            List<BlockPos> positions = [];
-            List<int> colors = [];
+            List<LightningAttractor> attractors = GetAttractorsByRadius(pp, r);
 
             var chunkSize = GlobalConstants.ChunkSize;
-            FastVec2i chunk2D = new(pp.X / chunkSize, pp.Z / chunkSize);
-            FastVec2i start = new(chunk2D.X - r, chunk2D.Y - r);
-            FastVec2i end = new(chunk2D.X + r, chunk2D.Y + r);
+            FastVec2i playerChunk = new(pp.X / chunkSize, pp.Z / chunkSize);
+            //The first position in the first chunk (north-west)
+            FastVec2i start = chunkSize * (playerChunk - r);
+            //The position after the last chunk (south-east)
+            FastVec2i end = chunkSize * (playerChunk + r + 1);
             Vec3i mapSize = api.World.BlockAccessor.MapSize;
 
-            // Loop through chunk columns
-            for (var gx = start.X; gx <= end.X; gx++) {
-                for (var gz = start.Y; gz <= end.Y; gz++) {
-                    for (int cx = 0; cx < chunkSize; cx++) {
-                        for (int cz = 0; cz < chunkSize; cz++) {
-                            int worldX = gx * chunkSize + cx;
-                            int worldZ = gz * chunkSize + cz;
+            int width = end.X - start.X;
+            int height = end.Y - start.Y;
+            int capacity = width * height;
 
-                            int rainHeight = api.World.BlockAccessor.GetRainMapHeightAt(worldX, worldZ);
-                            if (rainHeight < 0 || rainHeight >= mapSize.Y) continue; // Invalid pos
 
-                            var pos = new BlockPos(worldX, rainHeight, worldZ);
+            var origin = pp.Copy();
+            //MeshData mesh = new(capacity * 4 * 6, capacity * 6 * 6, false, false, true, false); ALL faces
+            MeshData mesh = new(capacity * 4, capacity * 1, false, false, true, false); // Mesh for only UP face
 
-                            bool canHitBlock = true;
-                            foreach (var attractor in attractors) {
-                                canHitBlock = !isLightningAttracted(pos, attractor, attractor.rainHeight, rainHeight);
-                                if (!canHitBlock) break;
-                            }
 
-                            positions.Add(pos);
-                            colors.Add(canHitBlock ? config.parsedLightningHitColor : config.parsedSafeColor);
+            // Build discriminator array  so we dont cehck on positions that cannot be covered
+            bool[] collideArr = new bool[capacity];
+            int sizeAttractorMax = 43; // Magic number (bigger than max raidus protects)
+            int attrR = sizeAttractorMax;
+            foreach (var attr in attractors) {
+                for (int z = attr.Pos.Z - attrR; z < attr.Pos.Z + attrR; z++) {
+                    for (int x = attr.Pos.X - attrR; x < attr.Pos.X + attrR; x++) {
+                        int xx = end.X - x;
+                        int zz = end.Y - z;
+                        if (xx < 0 || zz < 0 || xx >= width || zz >= height) {
+                            continue;
                         }
+                        collideArr[xx + zz * width] = true;
                     }
                 }
             }
 
-            showHighlights(positions, colors);
-        }
+            api.Event.EnqueueMainThreadTask(() => { _renderer.Dispose(); }, "lmr"); // Dispose of old mesh
 
-        private void showHighlights(List<BlockPos> positions, List<int> colors) {
-            api.Event.EnqueueMainThreadTask(() => api.World.HighlightBlocks(api.World.Player, config.HighlighSlot, positions, colors), config.TaskCode);
-        }
-        private void clearHighlights() {
-            api.Event.EnqueueMainThreadTask(() => api.World.HighlightBlocks(api.World.Player, config.HighlighSlot, new List<BlockPos>()), config.TaskCode);
-        }
+            //rather than iterating through chunks we will iterate through the whole area so it's straightforward to parallelize efficiently
+            for (var z = start.Y; z < end.Y; z++) {
+                for (var x = start.X; x < end.X; x++) {
+                    var pos = new BlockPos(x, 0, z);
+                    pos.Y = api.World.BlockAccessor.GetRainMapHeightAt(pos);
+                    if (pos.Y < 0 || pos.Y >= mapSize.Y) {
+                        continue; // Invalid pos TODO: check
+                    }
 
-        // Code from https://github.com/anegostudios/vssurvivalmod/blob/ac9a0059d84ca3449f066f26b5ee6b47bc9ce76a/BlockEntityBehavior/BEBehaviorAttractsLightning.cs#L62
-        private bool isLightningAttracted(BlockPos impactPos, LightningAttractor attractor, int ourRainHeight, int impactRainHeight) {
-            var world = api.World;
-
-            // Code from vssurvivalmod
-            // Get BEBehaviorAttractsLightning config attributes
-            //int ourRainHeight = world.BlockAccessor.GetRainMapHeightAt(attractor.pos.X, attractor.pos.Z);
-
-            // Something may be above us blocking line of sight to the sky
-            if (ourRainHeight != attractor.pos.Y) return false;
-
-            //int impactRainHeight = world.BlockAccessor.GetRainMapHeightAt((int)impactPos.X, (int)impactPos.Z);
-
-            float yDiff = attractor.artificialElevation + ourRainHeight - impactRainHeight;
-
-            // We want the modifier to always be beneficial (if greater than 1)
-            if (yDiff < 0) {
-                yDiff /= attractor.elevationAttractivenessMultiplier;
-            } else {
-                yDiff *= attractor.elevationAttractivenessMultiplier;
+                    int xx = end.X - x - 1;
+                    int zz = end.Y - z - 1;
+                    if (!collideArr[xx + zz * width]) {
+                        // Cant be protected
+                        int color = config.parsedLightningHitColor;
+                        HightlightRenderer.addUPFaceToMesh(mesh, pos, origin, color);
+                    } else {
+                        bool isProtected = attractors.Any(a => IsLightningAttracted(pos, a));
+                        int color = isProtected ? config.parsedSafeColor : config.parsedLightningHitColor;
+                        HightlightRenderer.addUPFaceToMesh(mesh, pos, origin, color);
+                    }
+                }
             }
 
-            yDiff = GameMath.Min(40, yDiff); // Cap to 40
+            // Upload new mesh and store ref
+            api.Event.EnqueueMainThreadTask(() => _renderer.Context = new(origin, api.Render.UploadMesh(mesh)), "lmr");
 
-            // Offset the distance by 1 only when the diff between the attractor and the impact pos is positive
-            double impactX = impactPos.X + (attractor.pos.X < impactPos.X ? 1.0 : 0.0);
-            double impactZ = impactPos.Z + (attractor.pos.Z < impactPos.Z ? 1.0 : 0.0);
+            sw.Stop();
+            api.Logger.Debug($"To calculate lights and populate list, taken ${sw.ElapsedMilliseconds}");
+        }
 
-            var posAttractor = new Vec2d(attractor.pos.X, attractor.pos.Z);
-            double distance = posAttractor.DistanceTo(impactX, impactZ);
-            if (distance - yDiff > 0.0f) return false;
+        private static bool IsLightningAttracted(BlockPos testPos, LightningAttractor attractor) {
+            var rodPos = attractor.Pos;
+            var properties = attractor.Properties;
+            float yDiff = properties.ArtificialElevation + rodPos.Y - testPos.Y;
 
-            // // FROM the wiki:
-            // int ourRainHeight = world.BlockAccessor.GetRainMapHeightAt(attractor.X, attractor.Z);
-            // if (ourRainHeight != attractor.Y) return false;
-            // // sqrt((rod.x - target.x)^2 + (rod.z - target.z)^2) <= min(40, (5 + rod.y - target.y) * 2) 
-            // var posAttractor = new Vec2d(attractor.X, attractor.Z);
-            // var distance = Math.Ceiling(posAttractor.DistanceTo(impactPos.X, impactPos.Z)); // Ceil the number so we can display complete block coverage
-            // var yDiff = GameMath.Min(40, (5 + attractor.Y - impactPos.Y) * 2);
-            // if (distance > yDiff) return false;
+            if (yDiff <= 0) {
+                return false;
+            }
 
+            var radius = yDiff * properties.ElevationAttractivenessMultiplier;
+            radius = GameMath.Min(40, radius);
+
+            //TODO: fix this :-/
+            double testX = testPos.X + (rodPos.X < testPos.X ? 1 : 0);
+            double testZ = testPos.Z + (rodPos.Z < testPos.Z ? 1 : 0);
+
+            var posAttractor = new Vec2d(rodPos.X, rodPos.Z);
+            if (posAttractor.DistanceTo(testX, testZ) > radius) {
+                return false;
+            }
             return true;
         }
     }
-
-
 }
