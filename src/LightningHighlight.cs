@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -131,8 +130,6 @@ namespace LightningHighlight {
         }
 
         private void DrawHighlightsNewRenderer(float _) {
-            Stopwatch sw = new Stopwatch();
-            sw.Start();
             BlockPos pp = api.World.Player.Entity.Pos.AsBlockPos;
             int r = config.ChunkRadius;
             List<LightningAttractor> attractors = GetAttractorsByRadius(pp, r);
@@ -199,9 +196,6 @@ namespace LightningHighlight {
 
             // Upload new mesh and store ref
             api.Event.EnqueueMainThreadTask(() => _renderer.Context = new(origin, api.Render.UploadMesh(mesh)), "lmr");
-
-            sw.Stop();
-            api.Logger.Debug($"To calculate lights and populate list, taken ${sw.ElapsedMilliseconds}");
         }
 
         private static bool IsLightningAttracted(BlockPos testPos, LightningAttractor attractor) {
