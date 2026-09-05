@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -10,7 +9,7 @@ using Vintagestory.API.MathTools;
 [assembly: ModInfo(
     name: "LightningHighlight",
     modID: "lightninghighlight",
-    Version = "1.1.4",
+    Version = "1.1.5",
     Description = "Highlight lightning protection",
     Website = "",
     Authors = new[] { "MichValwin", "Psyloh" }
@@ -80,8 +79,7 @@ namespace LightningHighlight {
                         var bht = block.BlockEntityBehaviors.FirstOrDefault(b => b.Name == "AttractsLightning");
                         if (bht == null) continue;
 
-                        //If  that line throws a NullException there's a biger issue underlying
-                        //thus we are ok to crash the game!
+                        if (bht.properties == null) throw new Exception("Err. AttractsLightning behaviour properties is null");
                         _attractorBlocks[block.Id] = bht.properties?.AsObject<BehaviorProperties>()!;
                     }
                 }
@@ -131,8 +129,6 @@ namespace LightningHighlight {
         }
 
         private void DrawHighlightsNewRenderer(float _) {
-            Stopwatch sw = new Stopwatch();
-            sw.Start();
             BlockPos pp = api.World.Player.Entity.Pos.AsBlockPos;
             int r = config.ChunkRadius;
             List<LightningAttractor> attractors = GetAttractorsByRadius(pp, r);
@@ -151,11 +147,10 @@ namespace LightningHighlight {
 
 
             var origin = pp.Copy();
-            //MeshData mesh = new(capacity * 4 * 6, capacity * 6 * 6, false, false, true, false); ALL faces
             MeshData mesh = new(capacity * 4, capacity * 1, false, false, true, false); // Mesh for only UP face
 
 
-            // Build discriminator array  so we dont cehck on positions that cannot be covered
+            // Build discriminator array  so we dont check on positions that cannot be covered
             bool[] collideArr = new bool[capacity];
             int sizeAttractorMax = 43; // Magic number (bigger than max raidus protects)
             int attrR = sizeAttractorMax;
@@ -199,9 +194,6 @@ namespace LightningHighlight {
 
             // Upload new mesh and store ref
             api.Event.EnqueueMainThreadTask(() => _renderer.Context = new(origin, api.Render.UploadMesh(mesh)), "lmr");
-
-            sw.Stop();
-            api.Logger.Debug($"To calculate lights and populate list, taken ${sw.ElapsedMilliseconds}");
         }
 
         private static bool IsLightningAttracted(BlockPos testPos, LightningAttractor attractor) {
