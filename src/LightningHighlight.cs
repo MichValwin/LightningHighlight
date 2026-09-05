@@ -9,7 +9,7 @@ using Vintagestory.API.MathTools;
 [assembly: ModInfo(
     name: "LightningHighlight",
     modID: "lightninghighlight",
-    Version = "1.1.4",
+    Version = "1.1.5",
     Description = "Highlight lightning protection",
     Website = "",
     Authors = new[] { "MichValwin", "Psyloh" }
@@ -79,8 +79,7 @@ namespace LightningHighlight {
                         var bht = block.BlockEntityBehaviors.FirstOrDefault(b => b.Name == "AttractsLightning");
                         if (bht == null) continue;
 
-                        //If  that line throws a NullException there's a biger issue underlying
-                        //thus we are ok to crash the game!
+                        if (bht.properties == null) throw new Exception("Err. AttractsLightning behaviour properties is null");
                         _attractorBlocks[block.Id] = bht.properties?.AsObject<BehaviorProperties>()!;
                     }
                 }
@@ -148,11 +147,10 @@ namespace LightningHighlight {
 
 
             var origin = pp.Copy();
-            //MeshData mesh = new(capacity * 4 * 6, capacity * 6 * 6, false, false, true, false); ALL faces
             MeshData mesh = new(capacity * 4, capacity * 1, false, false, true, false); // Mesh for only UP face
 
 
-            // Build discriminator array  so we dont cehck on positions that cannot be covered
+            // Build discriminator array  so we dont check on positions that cannot be covered
             bool[] collideArr = new bool[capacity];
             int sizeAttractorMax = 43; // Magic number (bigger than max raidus protects)
             int attrR = sizeAttractorMax;
